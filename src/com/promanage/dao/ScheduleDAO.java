@@ -14,6 +14,40 @@ public class ScheduleDAO {
     ProjectDAO projectDAO = new ProjectDAO();
     PredictionService predictionService = new PredictionService();
 
+    // Returns true if day is Monday–Friday
+    private boolean isWorkingDay(int dayNumber) {
+        int dayOfWeek = dayNumber % 7;
+
+        // Adjust because day 1 = Monday
+        if (dayOfWeek == 0) dayOfWeek = 7;
+
+        return dayOfWeek >= 1 && dayOfWeek <= 5;
+    }
+
+    // If deadline falls on weekend, move back to Friday
+    private int adjustToWorkingDay(int deadline) {
+
+        while (deadline > 0 && !isWorkingDay(deadline)) {
+            deadline--;
+        }
+
+        return deadline;
+    }
+
+    //helper to get days
+    private String getDayName(int dayNumber) {
+
+        String[] days = {
+                "Monday", "Tuesday", "Wednesday",
+                "Thursday", "Friday",
+                "Saturday (Planning Day)",
+                "Sunday (Planning Day)"
+        };
+
+        int index = (dayNumber - 1) % 7;
+        return days[index];
+    }
+
     public void generateSchedule() {
 
         try (Connection cn = DBConnection.getConnection()) {
