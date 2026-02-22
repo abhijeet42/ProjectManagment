@@ -4,6 +4,7 @@ import com.promanage.dao.ProjectDAO;
 import com.promanage.dao.ScheduleDAO;
 import com.promanage.model.Project;
 
+import java.util.List;
 import java.util.Scanner;
 
 public class Main {
@@ -16,11 +17,16 @@ public class Main {
 
         while (true) {
 
-            System.out.println("\n1. Add Project");
+            System.out.println("\n===== Project Management System =====");
+            System.out.println("1. Add Project");
             System.out.println("2. Delete Project");
-            System.out.println("3. Generate Schedule");
-            System.out.println("4. View Schedule");
-            System.out.println("5. Exit");
+            System.out.println("3. View All Projects");
+            System.out.println("4. Update Project Status");
+            System.out.println("5. Reset All Status to PENDING");
+            System.out.println("6. Generate Schedule");
+            System.out.println("7. View Schedule");
+            System.out.println("8. Reset all Projects");
+            System.out.println("9. Exit");
             System.out.print("Enter choice: ");
 
             int choice = sc.nextInt();
@@ -36,15 +42,33 @@ public class Main {
                     break;
 
                 case 3:
-                    scheduleDAO.generateSchedule();
+                    viewAllProjects();
                     break;
 
                 case 4:
-                    scheduleDAO.viewSchedule();
+                    updateProjectStatus();
                     break;
 
                 case 5:
+                    projectDAO.resetAllStatus();
+                    System.out.println("All project statuses reset to PENDING.");
+                    break;
+
+                case 6:
+                    scheduleDAO.generateSchedule();
+                    break;
+
+                case 7:
+                    scheduleDAO.viewSchedule();
+                    break;
+
+                case 8:
+                    projectDAO.resetAllProjects();
+                    break;
+
+                case 9:
                     System.exit(0);
+
             }
         }
     }
@@ -73,5 +97,42 @@ public class Main {
         int id = sc.nextInt();
 
         projectDAO.deleteProject(id);
+    }
+
+    static void viewAllProjects() {
+
+        List<Project> list = projectDAO.getAllProjects();
+
+        if (list.isEmpty()) {
+            System.out.println("No projects found.");
+            return;
+        }
+
+        System.out.println("\n----- Project List -----");
+
+        for (Project p : list) {
+            System.out.println(
+                    "ID: " + p.id +
+                            " | Title: " + p.title +
+                            " | Deadline: " + p.deadline +
+                            " | Revenue: " + p.revenue +
+                            " | Status: " + p.status
+            );
+        }
+    }
+
+    static void updateProjectStatus() {
+
+        System.out.print("Enter project ID: ");
+        int id = sc.nextInt();
+
+        sc.nextLine(); // consume leftover newline
+
+        System.out.print("Enter new status (PENDING / SCHEDULED / COMPLETED): ");
+        String status = sc.nextLine();
+
+        projectDAO.updateStatus(id, status);
+
+        System.out.println("Status updated successfully.");
     }
 }

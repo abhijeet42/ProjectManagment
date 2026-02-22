@@ -9,7 +9,7 @@ import java.util.List;
 
 public class ProjectDAO {
 
-    // ADD PROJECT
+
     public void addProject(Project p) {
         try (Connection cn = DBConnection.getConnection()) {
 
@@ -24,11 +24,10 @@ public class ProjectDAO {
             System.out.println("Project added successfully.");
 
         } catch (Exception e) {
-            e.printStackTrace();
+            System.out.println("Error : "+e);
         }
     }
 
-    // GET ALL PROJECTS
     public List<Project> getAllProjects() {
 
         List<Project> list = new ArrayList<>();
@@ -50,13 +49,13 @@ public class ProjectDAO {
             }
 
         } catch (Exception e) {
-            e.printStackTrace();
+            System.out.println("Error : "+e);
         }
 
         return list;
     }
 
-    // DELETE PROJECT
+
     public void deleteProject(int id) {
         try (Connection cn = DBConnection.getConnection()) {
 
@@ -68,20 +67,20 @@ public class ProjectDAO {
             System.out.println("Project deleted.");
 
         } catch (Exception e) {
-            e.printStackTrace();
+            System.out.println("Error : "+e);
         }
     }
 
-    // RESET STATUS
+
     public void resetAllStatus() {
         try (Connection cn = DBConnection.getConnection()) {
             cn.createStatement().executeUpdate("UPDATE projects SET status='PENDING'");
         } catch (Exception e) {
-            e.printStackTrace();
+            System.out.println("Error : "+e);
         }
     }
 
-    // UPDATE STATUS
+
     public void updateStatus(int id, String status) {
         try (Connection cn = DBConnection.getConnection()) {
 
@@ -93,7 +92,19 @@ public class ProjectDAO {
             ps.executeUpdate();
 
         } catch (Exception e) {
-            e.printStackTrace();
+            System.out.println("Error : "+e);
+        }
+    }
+    public void resetAllProjects() {
+        try (Connection cn = DBConnection.getConnection()) {
+
+            Statement st = cn.createStatement();
+            st.executeUpdate("TRUNCATE TABLE projects RESTART IDENTITY CASCADE");
+
+            System.out.println("All projects deleted and ID reset to 1.");
+
+        } catch (Exception e) {
+            System.out.println("Error : " + e);
         }
     }
 }

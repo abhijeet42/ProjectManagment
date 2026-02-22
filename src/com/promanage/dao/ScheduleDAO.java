@@ -5,8 +5,6 @@ import com.promanage.model.Project;
 import com.promanage.service.PredictionService;
 
 import java.sql.*;
-import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 
 public class ScheduleDAO {
@@ -52,64 +50,80 @@ public class ScheduleDAO {
 
         try (Connection cn = DBConnection.getConnection()) {
 
-            // STEP 1: Ask AI first
-            boolean shouldWait = predictionService.isHighRevenueExpectedNextWeek();
+            // STEP 1: Fetch all projects
+            List<Project> allProjects = projectDAO.getAllProjects();
 
-            if (shouldWait) {
-                System.out.println("Decision: Skipping scheduling this week to wait for higher revenue projects.");
+            if (allProjects.isEmpty()) {
+                System.out.println("No projects available.");
                 return;
             }
 
-            System.out.println("Decision: Proceeding with scheduling...");
+            // 🔥 STEP 1.5: Prediction Layer (NEW)
+            double[] result = predictionService.predictNextWeek();
+            double predictedRevenue = result[0];
+            double errorPercent = result[1];
+
+            double margin = predictedRevenue * (errorPercent / 100.0);
+
+            System.out.println("\n--- MARKET ANALYSIS ---");
+            System.out.println("Predicted Next Week Revenue: " + predictedRevenue);
+            System.out.println("Model Error Percentage: " + errorPercent + "%");
+            System.out.println("------------------------\n");
+
+            System.out.println("Proceeding with greedy scheduling...");
 
             // STEP 2: Clear old schedule
             cn.createStatement().executeUpdate("DELETE FROM schedule");
             projectDAO.resetAllStatus();
 
-            List<Project> projects = projectDAO.getAllProjects();
-
-            if (projects.isEmpty()) {
-                System.out.println("No projects found.");
-                return;
-            }
-
+            // STEP 3: Find maximum deadline
             int maxDeadline = 0;
-            for (Project p : projects) {
+            for (Project p : allProjects) {
                 if (p.deadline > maxDeadline)
                     maxDeadline = p.deadline;
             }
 
-            // Sort by revenue descending
-            Collections.sort(projects, new Comparator<Project>() {
-                public int compare(Project a, Project b) {
-                    return b.revenue - a.revenue;
-                }
-            });
+            // STEP 4: Sort by revenue descending
+            allProjects.sort((a, b) -> Integer.compare(b.revenue, a.revenue));
 
+            // STEP 5: Create slot array
             boolean[] slots = new boolean[maxDeadline + 1];
 
-            for (Project p : projects) {
+            // STEP 6: Greedy Scheduling (with prediction filter)
+            for (Project p : allProjects) {
 
-                for (int d = p.deadline; d >= 1; d--) {
+                // 🔥 NEW: Prediction Decision Filter
+                if (predictedRevenue - p.revenue > margin) {
 
-                    if (!slots[d]) {
+                    System.out.println("Project '" + p.title +
+                            "' postponed (better revenue expected next week).");
 
-                        PreparedStatement ps = cn.prepareStatement(
-                                "INSERT INTO schedule(day_number, project_id) VALUES (?, ?)");
+                    projectDAO.updateStatus(p.id, "POSTPONED");
+                    continue; // Skip greedy for this project
+                }
 
-                        ps.setInt(1, d);
-                        ps.setInt(2, p.id);
-                        ps.executeUpdate();
+                int adjustedDeadline = adjustToWorkingDay(p.deadline);
+
+                for (int d = adjustedDeadline; d >= 1; d--) {
+
+                    if (isWorkingDay(d) && !slots[d]) {
+
+                        try (PreparedStatement ps = cn.prepareStatement(
+                                "INSERT INTO schedule(day_number, project_id) VALUES (?, ?)")) {
+
+                            ps.setInt(1, d);
+                            ps.setInt(2, p.id);
+                            ps.executeUpdate();
+                        }
 
                         projectDAO.updateStatus(p.id, "SCHEDULED");
-
                         slots[d] = true;
                         break;
                     }
                 }
             }
 
-            System.out.println("Schedule generated successfully.");
+            System.out.println("\nSchedule generated successfully.");
 
         } catch (Exception e) {
             e.printStackTrace();
@@ -129,7 +143,11 @@ public class ScheduleDAO {
             System.out.println("\n--- FINAL SCHEDULE ---");
 
             while (rs.next()) {
-                System.out.println("Day " + rs.getInt("day_number") +
+
+                int dayNumber = rs.getInt("day_number");
+                String dayName = getDayName(dayNumber);
+
+                System.out.println("Day " + dayNumber + " (" + dayName + ")" +
                         " -> " + rs.getString("title") +
                         " (Revenue: " + rs.getInt("revenue") + ")");
             }
