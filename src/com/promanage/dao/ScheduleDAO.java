@@ -58,7 +58,7 @@ public class ScheduleDAO {
                 return;
             }
 
-            // 🔥 STEP 1.5: Prediction Layer (NEW)
+            // 🔥 STEP 1.5: Prediction Layer
             double[] result = predictionService.predictNextWeek();
             double predictedRevenue = result[0];
             double errorPercent = result[1];
@@ -70,37 +70,79 @@ public class ScheduleDAO {
             System.out.println("Model Error Percentage: " + errorPercent + "%");
             System.out.println("------------------------\n");
 
+            // 🔥 STEP 2: Split Projects (NEW LOGIC)
+            List<Project> currentWeek = new java.util.ArrayList<>();
+            List<Project> futureWeek = new java.util.ArrayList<>();
+
+            for (Project p : allProjects) {
+                if (p.deadline <= 5) {
+                    currentWeek.add(p);
+                } else {
+                    futureWeek.add(p);
+                }
+            }
+
+            // 🔥 STEP 3: Apply prediction only to future projects
+            List<Project> acceptedFuture = new java.util.ArrayList<>();
+
+            for (Project p : futureWeek) {
+
+                if (predictedRevenue - p.revenue <= margin) {
+                    acceptedFuture.add(p);
+                } else {
+                    System.out.println("Future Project '" + p.title +
+                            "' rejected by prediction.");
+                    projectDAO.updateStatus(p.id, "POSTPONED");
+                }
+            }
+
+            // 🔥 STEP 4: Edge Case Replacement Logic
+            for (Project future : futureWeek) {
+
+                if (!acceptedFuture.contains(future)) {
+
+                    for (Project current : currentWeek) {
+
+                        if (future.revenue > current.revenue) {
+
+                            System.out.println("Replaced '" + current.title +
+                                    "' with higher revenue future project '" +
+                                    future.title + "'.");
+
+                            currentWeek.remove(current);
+                            currentWeek.add(future);
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // 🔥 STEP 5: Final Pool for Greedy
+            List<Project> finalProjects = new java.util.ArrayList<>();
+            finalProjects.addAll(currentWeek);
+            finalProjects.addAll(acceptedFuture);
+
             System.out.println("Proceeding with greedy scheduling...");
 
-            // STEP 2: Clear old schedule
+            // STEP 6: Clear old schedule
             cn.createStatement().executeUpdate("DELETE FROM schedule");
             projectDAO.resetAllStatus();
 
-            // STEP 3: Find maximum deadline
+            // STEP 7: Find maximum deadline
             int maxDeadline = 0;
-            for (Project p : allProjects) {
+            for (Project p : finalProjects) {
                 if (p.deadline > maxDeadline)
                     maxDeadline = p.deadline;
             }
 
-            // STEP 4: Sort by revenue descending
-            allProjects.sort((a, b) -> Integer.compare(b.revenue, a.revenue));
+            // STEP 8: Sort by revenue descending
+            finalProjects.sort((a, b) -> Integer.compare(b.revenue, a.revenue));
 
-            // STEP 5: Create slot array
+            // STEP 9: Create slot array
             boolean[] slots = new boolean[maxDeadline + 1];
 
-            // STEP 6: Greedy Scheduling (with prediction filter)
-            for (Project p : allProjects) {
-
-                // 🔥 NEW: Prediction Decision Filter
-                if (predictedRevenue - p.revenue > margin) {
-
-                    System.out.println("Project '" + p.title +
-                            "' postponed (better revenue expected next week).");
-
-                    projectDAO.updateStatus(p.id, "POSTPONED");
-                    continue; // Skip greedy for this project
-                }
+            // STEP 10: Greedy Scheduling
+            for (Project p : finalProjects) {
 
                 int adjustedDeadline = adjustToWorkingDay(p.deadline);
 
